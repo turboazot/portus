@@ -1,83 +1,53 @@
-# Portus on Docker compose
+## Prerequisites
+You need to install docker in your computer
 
-This example is two-folded, as it contains the same example deployed in two
-ways:
-
-- A production-ready setup where all communication is encrypted.
-- A version which doesn't use encryption for simplicity.
-
-As explained in the [README file](../README.md) above, this example uses the
-[official Portus image](https://hub.docker.com/r/opensuse/portus/), so it has
-nothing to do with the docker-compose setup used for development in the root
-directory.
-
-## The hostname
-
-This example needs the hostname in multiple places. All this has been delegated
-into Compose's support of the `.env` file. For this reason, you will need to
-change hostname set in this file, and also in the `nginx/nginx.conf` file.
-
-## Certificates
-
-This example is set up in a way so you can use self-signed certificates. Of
-course this is not something you would want to do in production, but this way we
-ease up the task for those who are curious to try it out.
-In order to create self-signed certificates, you could use the following command:
-
+## Installation
+First you need to change `MACHINE_FQDN` variable in `.env` file:
 ```bash
-openssl req -x509 -sha256 -nodes -days 365 -newkey rsa:2048 -keyout portus.key -out portus.crt
+MACHINE_FQDN=domain.loc
+...
 ```
 
-After that, you can simply move the ``portus.key`` and the ``portus.crt`` files
-into the secrets directory.
+Than edit /etc/hosts file according to your `MACHINE_FQDN` setting:
+```text
+...
+127.0.0.1 domain.loc
+```
 
-## The setup
+Generate sertificates in `secrets` folder:
+```bash
+$ cd ./secrets
+$ openssl req -x509 -sha256 -nodes -days 365 -newkey rsa:2048 -keyout portus.key -out portus.crt
+```
 
-### Secure example
+Run docker-compose in the root folder:
+```bash
+$ docker-compose up -d
+``` 
 
-The secure example uses an NGinx container that proxies between the Portus and
-the Registry containers. Communication is always encrypted, but note that this
-is not strictly necessary. Because of this proxy setup, both Portus and the
-registry end up using the same hostname. Practically speaking:
+A bit wait and then you can visit login page `https://domain.loc` in your browser. 
+Create first admin user. And than create first registry:
+- Name: name of your registry
+- Hostname: domain.loc
+- Use SSL: true
 
-- When setting up the registry for the first time in Portus, you have to check
-  the "Use SSL" box and enter the hostname without specifying any ports.
-- From the CLI, docker images should be prefixed with the hostname, but without
-  specifying any ports (e.g. "my.hostname.com/opensuse/amd64:latest")
+Than click on button "Create"
 
-Again, as advertised [here](../README.md), take the word "secure" with a grain
-of salt. Do *not* deploy these files blindly into your cluster: review them
-first, and make all the changes you need to fit your purpose.
+After that you can push your images
 
-### Insecure example
+```bash
+$ docker login domain.loc
+$ docker push domain.loc/nginx
+```
 
-The other example is as minimal as possible. Because of this, there's no NGinx
-proxy and the Portus and the Registry containers are bound to their respective
-ports. Moreover, SSL has not been configured on this setup. Because of this:
+Ta-daaaaam)
 
-- When setting up the registry for the first time in Portus, you do **not** have
-  to check the "Use SSL" box. Moreover, the hostname has to end with the 5000 port
-  (e.g. "my.hostname.com:5000").
-- From the CLI, docker images should be prefixed with the hostname and the 5000
-  port (e.g. "my.hostname.com:5000/opensuse/amd64:latest")
+## Garbage collector
 
-### Serving static assets
+By default script runs every day at 2:00 am
 
-The static assets can be served in two ways:
-
-- With NGinx: this is the case of the *secure* example, in which we share the
-  `public` directory between the NGinx and the Portus containers. This way, all
-  assets are served directly and faster from the NGinx container. That being
-  said, make sure to read
-  [this note](http://port.us.org/docs/upgrading-portus.html#upgrading-with-docker-compose)
-  from the documentation first if you are planning to deploy it this way, since
-  it clarifies a common pitfall when upgrading Portus.
-- With Rails by setting the `RAILS_SERVE_STATIC_FILES` environment variable to
-  true. This is done in the *insecure* example, and it's recommended in
-  scenarios where you don't want an extra container for managing your static assets.
-
-## Acknowledgements
-
-Many thanks to [@Djelibeybi](https://github.com/Djelibeybi), since we
-borrowed a lot of the NGinx configuration from
-[his repository](https://github.com/Djelibeybi/Portus-On-OracleLinux7).
+For execute garbage-collector script manually, just send HUP signal
+to your registry container:
+```bash
+$ docker-compose kill -s HUP registry
+```
